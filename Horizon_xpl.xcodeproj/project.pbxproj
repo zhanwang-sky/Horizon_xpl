@@ -6,8 +6,17 @@
 	objectVersion = 50;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8F3BAA7B271992C3007F4E43 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8F3BAA7A271992C3007F4E43 /* main.cpp */; };
+		8FA5B18E2719935D005F59A3 /* XPLM.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8FA5B18D2719935D005F59A3 /* XPLM.framework */; };
+		8FA5B1922719936D005F59A3 /* XPWidgets.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8FA5B1912719936D005F59A3 /* XPWidgets.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
+		8F3BAA7A271992C3007F4E43 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		8F7B7F2B27199066008B0789 /* libHorizon_xpl.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libHorizon_xpl.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+		8FA5B18D2719935D005F59A3 /* XPLM.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XPLM.framework; path = SDK/Libraries/Mac/XPLM.framework; sourceTree = "<group>"; };
+		8FA5B1912719936D005F59A3 /* XPWidgets.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XPWidgets.framework; path = SDK/Libraries/Mac/XPWidgets.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -15,16 +24,28 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8FA5B18E2719935D005F59A3 /* XPLM.framework in Frameworks */,
+				8FA5B1922719936D005F59A3 /* XPWidgets.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8F3BAA7927199254007F4E43 /* Source */ = {
+			isa = PBXGroup;
+			children = (
+				8F3BAA7A271992C3007F4E43 /* main.cpp */,
+			);
+			path = Source;
+			sourceTree = "<group>";
+		};
 		8F7B7F2227199066008B0789 = {
 			isa = PBXGroup;
 			children = (
+				8F3BAA7927199254007F4E43 /* Source */,
 				8F7B7F2C27199066008B0789 /* Products */,
+				8FA5B18C2719935D005F59A3 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -34,6 +55,15 @@
 				8F7B7F2B27199066008B0789 /* libHorizon_xpl.dylib */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		8FA5B18C2719935D005F59A3 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8FA5B18D2719935D005F59A3 /* XPLM.framework */,
+				8FA5B1912719936D005F59A3 /* XPWidgets.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -102,6 +132,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8F3BAA7B271992C3007F4E43 /* main.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -145,11 +176,21 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				EXECUTABLE_EXTENSION = xpl;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					"APL=1",
+					"IBM=0",
+					"LIN=0",
+					"XPLM200=1",
+					"XPLM210=1",
+					"XPLM300=1",
+					"XPLM301=1",
+					"XPLM302=1",
+					"XPLM303=1",
 					"DEBUG=1",
 					"$(inherited)",
 				);
@@ -204,8 +245,20 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				EXECUTABLE_EXTENSION = xpl;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"APL=1",
+					"IBM=0",
+					"LIN=0",
+					"XPLM200=1",
+					"XPLM210=1",
+					"XPLM300=1",
+					"XPLM301=1",
+					"XPLM302=1",
+					"XPLM303=1",
+				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
@@ -226,6 +279,14 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				EXECUTABLE_PREFIX = lib;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/SDK/Libraries/Mac",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/SDK/CHeaders/XPLM",
+					"$(PROJECT_DIR)/SDK/CHeaders/Widgets",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 			};
@@ -238,6 +299,14 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				EXECUTABLE_PREFIX = lib;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/SDK/Libraries/Mac",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/SDK/CHeaders/XPLM",
+					"$(PROJECT_DIR)/SDK/CHeaders/Widgets",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 			};
