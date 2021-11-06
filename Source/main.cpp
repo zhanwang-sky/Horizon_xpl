@@ -5,19 +5,39 @@
 //  Created by 冀宸 on 2021/10/15.
 //
 
-#include <cstring>
+#include <sstream>
+#include "XPLMDataAccess.h"
 #include "XPLMMenus.h"
+#include "XPLMProcessing.h"
 #include "XPStandardWidgets.h"
 #include "XPWidgets.h"
 
-static XPWidgetID gHorizonXplMainWindow = NULL;
-static XPWidgetID gHorizonXplRTAttitude[3];
-static XPWidgetID gHorizonXplTGAttitude[3];
+/// Macros
+#define PID_LOOP_INTERVAL (1.f / 30.f) // 30 fps
 
-static void horizonXplCreateMainWindow(int, int);
-static void horizonXplMenuHandler(void*, void*);
-static int horizonXplWidgetHandler(XPWidgetMessage, XPWidgetID, long, long);
+/// Global Variables
+// Widgets
+static XPWidgetID gHorizonWidgetMainWindow;
+static XPWidgetID gHorizonWidgetRTAttitude[3];
+static XPWidgetID gHorizonWidgetTGAttitude[3];
+static XPWidgetID gHorizonWidgetYoke[3];
+static XPWidgetID gHorizonWidgetTrim[3];
 
+// DataRefs
+static XPLMDataRef gHorizonDataRefYoke[3];
+static XPLMDataRef gHorizonDataRefTrim[3];
+static const std::string gHorizonDataRefYokePrefix = "sim/joystick/";
+static const std::string gHorizonDataRefTrimPrefix = "sim/flightmodel/controls/";
+static const char *gHorizonDataRefYokeDescs[3] = {"yoke_roll_ratio", "yoke_pitch_ratio", "yoke_heading_ratio"};
+static const char *gHorizonDataRefTrimDescs[3] = {"ail_trim", "elv_trim", "rud_trim"};
+
+/// Prototypes
+static void horizonMenuHandler(void*, void*);
+static int horizonWidgetHandler(XPWidgetMessage, XPWidgetID, long, long);
+static void horizonCreateMainWindow(int, int);
+static float horizonPIDLoop(float, float, int, void*);
+
+/// Functions
 PLUGIN_API int XPluginStart(char *outName, char *outSig, char *outDesc) {
     XPLMMenuID menuId;
     int subMenuItem;
@@ -26,20 +46,32 @@ PLUGIN_API int XPluginStart(char *outName, char *outSig, char *outDesc) {
     strcpy(outSig, "jichen.Horizon_xpl");
     strcpy(outDesc, "An autopilot plugin for X-Plane 11.");
 
+    // Menu
     subMenuItem = XPLMAppendMenuItem(XPLMFindPluginsMenu(), "Horizon_xpl", NULL, 1);
     menuId = XPLMCreateMenu("Horizon_xpl", XPLMFindPluginsMenu(), subMenuItem,
-                            horizonXplMenuHandler, NULL);
+                            horizonMenuHandler, NULL);
     XPLMAppendMenuItem(menuId, "AP", (void*) "AP", 1);
+
+    // DataRef
+    for (int i = 0; i < 3; ++i) {
+        gHorizonDataRefYoke[i] = XPLMFindDataRef((gHorizonDataRefYokePrefix + gHorizonDataRefYokeDescs[i]).c_str());
+        gHorizonDataRefTrim[i] = XPLMFindDataRef((gHorizonDataRefTrimPrefix + gHorizonDataRefTrimDescs[i]).c_str());
+    }
+
+    // PID loop
+    XPLMRegisterFlightLoopCallback(horizonPIDLoop, PID_LOOP_INTERVAL, NULL);
 
     return 1;
 }
 
 PLUGIN_API void XPluginStop(void) {
-    if (gHorizonXplMainWindow) {
-        XPDestroyWidget(gHorizonXplMainWindow, 1);
-        gHorizonXplMainWindow = NULL;
-        memset(gHorizonXplRTAttitude, NULL, 3);
-        memset(gHorizonXplTGAttitude, NULL, 3);
+    // Unregister PID loop
+    XPLMUnregisterFlightLoopCallback(horizonPIDLoop, NULL);
+
+    // Destroy menu
+    if (gHorizonWidgetMainWindow) {
+        XPDestroyWidget(gHorizonWidgetMainWindow, 1);
+        gHorizonWidgetMainWindow = NULL;
     }
 }
 
@@ -55,8 +87,31 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID /*inFrom*/, int /*inMsg*/, vo
     return;
 }
 
-static void horizonXplCreateMainWindow(int width, int height) {
-    static const char *attitude[3] = {"roll", "Pitch", "YAW"};
+static void horizonMenuHandler(void* /*inMenuRef*/, void *inItemRef) {
+    if (strcmp((char*) inItemRef, "AP") == 0) {
+        if (!gHorizonWidgetMainWindow) {
+            horizonCreateMainWindow(320, 560);
+        } else {
+            if (!XPIsWidgetVisible(gHorizonWidgetMainWindow)) {
+                XPShowWidget(gHorizonWidgetMainWindow);
+            }
+        }
+    }
+}
+
+static int horizonWidgetHandler(XPWidgetMessage inMessage, XPWidgetID inWidget,
+                                long /*inParam1*/, long /*inParam2*/) {
+    if (inMessage == xpMessage_CloseButtonPushed) {
+        if (inWidget == gHorizonWidgetMainWindow) {
+            XPHideWidget(gHorizonWidgetMainWindow);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static void horizonCreateMainWindow(int width, int height) {
+    static const char *attitude[3] = {" ROLL", " PITCH", " YAW"};
     int left, top, right, bottom;
     int row, column;
 
@@ -67,21 +122,21 @@ static void horizonXplCreateMainWindow(int width, int height) {
     bottom = top - height;
     left = right - width;
     // create Main Window
-    gHorizonXplMainWindow = XPCreateWidget(left, top, right, bottom,
-                                           1, // visible
-                                           "Horizon_xpl AP", // description
-                                           1, // root
-                                           NULL, // must be NULL for root
-                                           xpWidgetClass_MainWindow);
-    XPSetWidgetProperty(gHorizonXplMainWindow, xpProperty_MainWindowType,
+    gHorizonWidgetMainWindow = XPCreateWidget(left, top, right, bottom,
+                                              1, // visible
+                                              "Horizon_xpl AP", // description
+                                              1, // root
+                                              NULL, // must be NULL for root
+                                              xpWidgetClass_MainWindow);
+    XPSetWidgetProperty(gHorizonWidgetMainWindow, xpProperty_MainWindowType,
                         xpMainWindowStyle_Translucent);
-    XPSetWidgetProperty(gHorizonXplMainWindow, xpProperty_MainWindowHasCloseBoxes, 1);
+    XPSetWidgetProperty(gHorizonWidgetMainWindow, xpProperty_MainWindowHasCloseBoxes, 1);
 
-    // roll Pitch YAW
+    // ROLL PITCH YAW
     row = top - 30;
     column = left;
     for (int i = 0; i < 3; ++i) {
-        int step = width / 4;
+        int step = width / 4.f;
         int lb = column + (i + 1) * step + 10;
         int rb = column + (i + 2) * step - 10;
         int tb = row;
@@ -90,89 +145,140 @@ static void horizonXplCreateMainWindow(int width, int height) {
                        1, // visible
                        attitude[i], // description
                        0, // not root
-                       gHorizonXplMainWindow, // belongs to Main Window
+                       gHorizonWidgetMainWindow, // belongs to Main Window
                        xpWidgetClass_Caption);
     }
 
-    // Realtime
+    // Realtime Attitude
     row -= 20;
     column = left;
     for (int i = -1; i < 3; ++i) {
-        int step = width / 4;
+        int step = width / 4.f;
         int lb = column + (i + 1) * step + 10;
         int rb = column + (i + 2) * step - 10;
         int tb = row;
         int bb = tb - 12;
         char *desc = NULL;
-        XPWidgetID tmp = NULL;
+        XPWidgetID widgetID = NULL;
         if (i < 0) {
             desc = (char*) "Realtime";
         } else {
-            desc = (char*) "   0.0";
+            desc = (char*) " 0.000";
         }
-        tmp = XPCreateWidget(lb, tb, rb, bb,
-                             1, // visible
-                             desc, // description
-                             0, // not root
-                             gHorizonXplMainWindow, // belongs to Main Window
-                             xpWidgetClass_Caption);
+        widgetID = XPCreateWidget(lb, tb, rb, bb,
+                                  1, // visible
+                                  desc, // description
+                                  0, // not root
+                                  gHorizonWidgetMainWindow, // belongs to Main Window
+                                  xpWidgetClass_Caption);
         if (i >= 0) {
-            XPSetWidgetProperty(tmp, xpProperty_CaptionLit, 1);
-            gHorizonXplRTAttitude[i] = tmp;
+            XPSetWidgetProperty(widgetID, xpProperty_CaptionLit, 1);
+            gHorizonWidgetRTAttitude[i] = widgetID;
         }
     }
 
-    // Target
+    // Target Attitude
     row -= 20;
     column = left;
     for (int i = -1; i < 3; ++i) {
-        int step = width / 4;
+        int step = width / 4.f;
         int lb = column + (i + 1) * step + 10;
         int rb = column + (i + 2) * step - 10;
         int tb = row;
         int bb = tb - 12;
         char *desc = NULL;
-        XPWidgetID tmp = NULL;
+        XPWidgetID widgetID = NULL;
         if (i < 0) {
             desc = (char*) "Target";
         } else if (i < 2) {
-            desc = (char*) "   0.0";
+            desc = (char*) " 0.0000";
         } else {
             desc = (char*) " n/a";
         }
-        tmp = XPCreateWidget(lb, tb, rb, bb,
-                             1, // visible
-                             desc, // description
-                             0, // not root
-                             gHorizonXplMainWindow, // belongs to Main Window
-                             xpWidgetClass_Caption);
+        widgetID = XPCreateWidget(lb, tb, rb, bb,
+                                  1, // visible
+                                  desc, // description
+                                  0, // not root
+                                  gHorizonWidgetMainWindow, // belongs to Main Window
+                                  xpWidgetClass_Caption);
         if (i >= 0) {
-            gHorizonXplTGAttitude[i] = tmp;
+            gHorizonWidgetTGAttitude[i] = widgetID;
         }
     }
 
-    XPAddWidgetCallback(gHorizonXplMainWindow, horizonXplWidgetHandler);
-}
-
-static void horizonXplMenuHandler(void* /*inMenuRef*/, void *inItemRef) {
-    if (strcmp((char*) inItemRef, "AP") == 0) {
-        if (!gHorizonXplMainWindow) {
-            horizonXplCreateMainWindow(320, 560);
+    // Yoke
+    row -= 20;
+    column = left;
+    for (int i = -1; i < 3; ++i) {
+        int step = width / 4.f;
+        int lb = column + (i + 1) * step + 10;
+        int rb = column + (i + 2) * step - 10;
+        int tb = row;
+        int bb = tb - 12;
+        char *desc = NULL;
+        XPWidgetID widgetID = NULL;
+        if (i < 0) {
+            desc = (char*) "Yoke";
         } else {
-            if (!XPIsWidgetVisible(gHorizonXplMainWindow)) {
-                XPShowWidget(gHorizonXplMainWindow);
-            }
+            desc = (char*) " 0.000";
+        }
+        widgetID = XPCreateWidget(lb, tb, rb, bb,
+                                  1, // visible
+                                  desc, // description
+                                  0, // not root
+                                  gHorizonWidgetMainWindow, // belongs to Main Window
+                                  xpWidgetClass_Caption);
+        if (i >= 0) {
+            gHorizonWidgetYoke[i] = widgetID;
         }
     }
+
+    // Trim
+    row -= 20;
+    column = left;
+    for (int i = -1; i < 3; ++i) {
+        int step = width / 4.f;
+        int lb = column + (i + 1) * step + 10;
+        int rb = column + (i + 2) * step - 10;
+        int tb = row;
+        int bb = tb - 12;
+        char *desc = NULL;
+        XPWidgetID widgetID = NULL;
+        if (i < 0) {
+            desc = (char*) "Trim";
+        } else {
+            desc = (char*) " 0.000";
+        }
+        widgetID = XPCreateWidget(lb, tb, rb, bb,
+                                  1, // visible
+                                  desc, // description
+                                  0, // not root
+                                  gHorizonWidgetMainWindow, // belongs to Main Window
+                                  xpWidgetClass_Caption);
+        if (i >= 0) {
+            gHorizonWidgetTrim[i] = widgetID;
+        }
+    }
+
+    XPAddWidgetCallback(gHorizonWidgetMainWindow, horizonWidgetHandler);
 }
 
-static int horizonXplWidgetHandler(XPWidgetMessage inMessage, XPWidgetID inWidget,
-                                   long /*inParam1*/, long /*inParam2*/) {
-    if (inMessage == xpMessage_CloseButtonPushed) {
-        if (inWidget == gHorizonXplMainWindow) {
-            XPHideWidget(gHorizonXplMainWindow);
-        }
-        return 1;
+static float horizonPIDLoop(float /*inElapsedSinceLastCall*/,
+                            float /*inElapsedTimeSinceLastFlightLoop*/,
+                            int /*inCounter*/,
+                            void* /*inRefcon*/) {
+    float floatData = 0.f;
+    char buf[32] = {0};
+
+    for (int i = 0; i < 3; ++i) {
+        floatData = XPLMGetDataf(gHorizonDataRefYoke[i]);
+        snprintf(buf, sizeof(buf), "% .3f", floatData);
+        XPSetWidgetDescriptor(gHorizonWidgetYoke[i], buf);
+
+        floatData = XPLMGetDataf(gHorizonDataRefTrim[i]);
+        snprintf(buf, sizeof(buf), "% .3f", floatData);
+        XPSetWidgetDescriptor(gHorizonWidgetTrim[i], buf);
     }
-    return 0;
+
+    return PID_LOOP_INTERVAL;
 }
